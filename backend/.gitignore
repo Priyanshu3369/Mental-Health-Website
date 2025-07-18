@@ -1,0 +1,59 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.venv/
+
+# Environment variables
+.env
+.env.*
+
+# Python egg info
+*.egg-info/
+dist/
+build/
+
+# Logs and local debug files
+*.log
+*.pot
+*.pid
+
+# SQLite / local DB files
+*.sqlite3
+*.db
+
+# VSCode settings
+.vscode/
+
+# macOS files
+.DS_Store
+
+# Pytest cache
+.pytest_cache/
+
+# Jupyter Notebook Checkpoints (if using notebooks)
+.ipynb_checkpoints/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# Model cache and Hugging Face cache (optional)
+*.ckpt
+*.pt
+*.pth
+*.onnx
+~/.cache/
+~/.huggingface/
+
+# Render/Fly.io deploy metadata (optional)
+*.render/
+.fly/
+
+# gTTS cache or audio files (if saving temporary audio files)
+audio_output/
+*.mp3
