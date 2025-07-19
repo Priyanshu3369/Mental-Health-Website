@@ -1,136 +1,116 @@
-import React, { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect, useRef } from "react";
 
-export default function ChatPage() {
+const ChatPage = () => {
   const [messages, setMessages] = useState([
-    { type: "bot", text: "Hi, I'm here to support you. How are you feeling today?" },
+    { sender: "bot", text: "Hi, I'm here for you. How are you feeling today?" },
   ]);
   const [input, setInput] = useState("");
+  const [listening, setListening] = useState(false);
   const messagesEndRef = useRef(null);
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef(null);
-
-  useEffect(() => {
-    scrollToBottom();
-
-    // Setup speech recognition on first mount
-    if ("webkitSpeechRecognition" in window) {
-      const SpeechRecognition = window.webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-
-      recognition.onresult = (event) => {
-        const speechResult = event.results[0][0].transcript;
-        setInput(speechResult);
-      };
-
-      recognition.onerror = (event) => {
-        console.error("Speech recognition error", event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-    } else {
-      console.warn("Speech Recognition not supported in this browser.");
-    }
-  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
-    const userMessage = { type: "user", text: input };
-    setMessages((prev) => [...prev, userMessage]);
+  const handleSend = async (textToSend) => {
+    if (!textToSend.trim()) return;
+
+    const userMsg = { sender: "user", text: textToSend };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
     try {
-      const res = await fetch("http://localhost:5000/chat", {
+      const response = await fetch("http://localhost:5000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ message: textToSend }),
       });
 
-      const data = await res.json();
-      const botMessage = { type: "bot", text: data.reply, audio: data.audio };
-      setMessages((prev) => [...prev, botMessage]);
-      scrollToBottom();
+      const data = await response.json();
+      const botMsg = { sender: "bot", text: data.reply };
+      setMessages((prev) => [...prev, botMsg]);
 
-      // Play voice reply if available
-      if (data.audio) {
-        const audio = new Audio(`http://localhost:5000${data.audio}`);
-        audio.play();
-      }
-
+      // ✅ Play dynamic audio file from server
+      const audio = new Audio(`http://localhost:5000${data.audio}`);
+      audio.play().catch((e) => console.error("Audio playback failed:", e));
     } catch (error) {
       console.error("Error fetching bot response", error);
     }
   };
 
 
-  const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-    } else {
-      recognitionRef.current?.start();
+  // 🎤 Handle Speech Recognition
+  const handleVoiceInput = () => {
+    if (!("webkitSpeechRecognition" in window)) {
+      alert("Voice input not supported in this browser");
+      return;
     }
-    setIsListening(!isListening);
+
+    const recognition = new window.webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setListening(true);
+
+    recognition.onresult = (event) => {
+      const speechText = event.results[0][0].transcript;
+      setInput(speechText);
+      handleSend(speechText);
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error:", event.error);
+      setListening(false);
+    };
+
+    recognition.onend = () => setListening(false);
+    recognition.start();
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white flex flex-col items-center p-4">
-      <div className="w-full max-w-3xl h-[80vh] bg-white shadow-xl rounded-2xl overflow-hidden flex flex-col border border-gray-200">
-        <div className="flex-1 p-4 overflow-y-auto space-y-2">
-          {messages.map((msg, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`p-3 max-w-xs rounded-xl ${msg.type === "user"
-                  ? "bg-blue-100 self-end"
-                  : "bg-gray-100 self-start"
-                }`}
-            >
+    <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-purple-100">
+      <div className="p-4 text-2xl font-semibold text-center text-purple-700">🧠 Your Mental Health Companion</div>
+
+      <div className="flex-1 overflow-y-auto px-4">
+        {messages.map((msg, index) => (
+          <div key={index} className={`my-2 flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`p-3 rounded-xl max-w-xs ${msg.sender === "user" ? "bg-purple-500 text-white" : "bg-white text-gray-800 shadow"}`}>
               {msg.text}
-            </motion.div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
 
-        <div className="p-4 border-t flex items-center gap-2">
-          <button
-            onClick={toggleListening}
-            className={`p-2 rounded-full transition ${isListening ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600"
-              }`}
-            title="Voice Input"
-          >
-            🎙️
-          </button>
-
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            className="flex-1 p-2 border border-gray-300 rounded-xl"
-            placeholder="Type or speak your feelings..."
-          />
-          <button
-            onClick={handleSend}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl"
-          >
-            Send
-          </button>
-        </div>
+      <div className="p-4 flex gap-2 items-center border-t bg-white">
+        <button
+          onClick={handleVoiceInput}
+          className={`rounded-full p-2 text-white ${listening ? "bg-red-500" : "bg-purple-500"} hover:bg-purple-600 transition`}
+          title={listening ? "Listening..." : "Start Voice Input"}
+        >
+          🎤
+        </button>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend(input)}
+          placeholder="Type or speak your thoughts..."
+          className="flex-1 p-2 border rounded-xl focus:outline-none"
+        />
+        <button
+          onClick={() => handleSend(input)}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl transition"
+        >
+          Send
+        </button>
       </div>
     </div>
   );
-}
+};
+
+export default ChatPage;
