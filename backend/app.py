@@ -1,28 +1,40 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
+from gtts import gTTS
 from flask_cors import CORS
-from models.chatbot_model import get_bot_reply
+from transformers import BlenderbotTokenizer, BlenderbotForConditionalGeneration
+import uuid
+import os
 
 app = Flask(__name__)
-CORS(app)  # allow all origins
+CORS(app)
+model_name = "facebook/blenderbot-400M-distill"
+tokenizer = BlenderbotTokenizer.from_pretrained(model_name)
+model = BlenderbotForConditionalGeneration.from_pretrained(model_name)
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json()
-    message = data.get("message", "")
-    if not message:
-        return jsonify({"error": "Empty message"}), 400
-    reply = get_bot_reply(message)
-    if len(reply.strip()) < 5 or "guy" in reply:
-        reply = "I'm here for you. Want to talk more about what you're feeling?"
-    # Example quick patch
-    if reply.lower().startswith("i'm not sure") or "fun" in reply:
-        reply = "Sorry, I may have misunderstood. Can you help me understand what you're going through a bit more?"
+    data = request.json
+    user_message = data.get("message")
 
-    return jsonify({"reply": reply})
+    inputs = tokenizer([user_message], return_tensors="pt")
+    reply_ids = model.generate(**inputs)
+    reply = tokenizer.batch_decode(reply_ids, skip_special_tokens=True)[0]
 
-@app.route("/")
-def home():
-    return "Mental Health Chatbot API is running."
+    # Generate speech
+    tts = gTTS(reply)
+    audio_id = str(uuid.uuid4())
+    audio_path = f"audio/{audio_id}.mp3"
+    os.makedirs("audio", exist_ok=True)
+    tts.save(audio_path)
+
+    return jsonify({
+        "reply": reply,
+        "audio": f"/audio/{audio_id}.mp3"
+    })
+
+@app.route("/audio/<filename>")
+def serve_audio(filename):
+    return send_file(f"audio/{filename}", mimetype="audio/mpeg")
 
 if __name__ == "__main__":
     app.run(debug=True)
